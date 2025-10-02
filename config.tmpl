@@ -1,0 +1,23 @@
+import base64 as b64
+
+TESTFLIGHT_URLS = {
+    "exampleGroup":[
+        "https://testflight.apple.com/join/your-app-id",
+        "https://testflight.apple.com/join/another-app-id"
+    ],
+    "exampleGroup2":[
+    ]
+}
+
+AES_KEY = b64.b64decode("your-encrypted-aes-key")
+
+NOFITY_CONFIG = {
+    "webhook": ["https://webhook.site/your-webhook-url"],
+    "wechat": [{
+        "corp_id": "your-corp-id",
+        "agent_id": "your-agent-id",
+        "secret_enc": "your-aes-encrypted-secret",
+        "to_user": "@all"
+    }],
+    "bark": ["your-bark-url"] #也可以是base64编码后的bark url
+}
