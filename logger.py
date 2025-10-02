@@ -1,12 +1,13 @@
 import logging
 import sys
+from typing import Optional, Union, TextIO, Any, cast
 
 class ColorFormatter(logging.Formatter):
-    GREY = '\033[90m'
-    GREEN = '\033[92m'
-    RESET = '\033[0m'
+    GREY: str = '\033[90m'
+    GREEN: str = '\033[92m'
+    RESET: str = '\033[0m'
 
-    def format(self, record):
+    def format(self, record: logging.LogRecord) -> str:
         # 保留对 extra 字段 group/url/result 的支持以兼容现有代码
         msg = record.getMessage()
         group = getattr(record, "group", "")
@@ -31,16 +32,16 @@ class ColorFormatter(logging.Formatter):
             return f"{name_prefix}{group_fmt} - {url_fmt}: {result_fmt}"
         return f"{name_prefix}{msg}"
 
-class FlushStreamHandler(logging.StreamHandler):
+class FlushStreamHandler(logging.StreamHandler[TextIO]):
     """
     StreamHandler that ensures the stream is flushed after each emit.
     This helps when stdout is buffered or when immediate output is required.
     我们直接手动写入并 flush，避免依赖父类实现在不同环境有差异导致未及时 flush 的情况。
     """
-    def emit(self, record):
+    def emit(self, record: logging.LogRecord) -> None:
         try:
             msg = self.format(record)
-            stream = self.stream if hasattr(self, "stream") and self.stream is not None else sys.stdout
+            stream = cast(TextIO, self.stream if hasattr(self, "stream") and self.stream is not None else sys.stdout)
             stream.write(msg + self.terminator)
             try:
                 stream.flush()
@@ -67,7 +68,7 @@ DEFAULT_SERVICE = "testflight"
 # 内部单例：保存用于共享 handler/配置的 base logger（以 DEFAULT_SERVICE 命名）
 _logger_singleton = None
 
-def configure_logger(level=logging.INFO, use_color=True, name=DEFAULT_SERVICE):
+def configure_logger(level: int = logging.INFO, use_color: bool = True, name: str = DEFAULT_SERVICE) -> logging.Logger:
     """
     Configure base logger once. Subsequent calls return the same configured base logger.
     The base logger's handlers 将被共享给其它命名 logger（通过 get_service_logger）。
@@ -102,7 +103,7 @@ def configure_logger(level=logging.INFO, use_color=True, name=DEFAULT_SERVICE):
     _logger_singleton = logger
     return logger
 
-def get_logger(name=None):
+def get_logger(name: Optional[str] = None) -> logging.Logger:
     """
     Return configured logger. If not configured yet, will configure with defaults.
     If name provided, returns logger with that name but shares handlers and level from base logger.
@@ -120,7 +121,7 @@ def get_logger(name=None):
         return lg
     return _logger_singleton
 
-def get_service_logger(service_name, level=None, use_color=None):
+def get_service_logger(service_name: str, level: Optional[int] = None, use_color: Optional[bool] = None) -> logging.Logger:
     """
     Convenience function to get a logger for a specific service.
     - service_name: e.g., WAIT_SERVICE or REQUEST_SERVICE or any custom name.
