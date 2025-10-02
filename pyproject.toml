@@ -1,0 +1,11 @@
+[project]
+name = "testflighttracker"
+version = "0.1.0"
+description = "Add your description here"
+readme = "README.md"
+requires-python = ">=3.12"
+dependencies = [
+    "aiohttp>=3.12.15",
+    "beautifulsoup4>=4.14.2",
+    "pycryptodome>=3.23.0",
+]

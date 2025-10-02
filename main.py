@@ -1,15 +1,21 @@
 import aiohttp
 import asyncio
-from bs4 import BeautifulSoup
 import logging
 import time
 from notify import Notifier
 from config import NOFITY_CONFIG, AES_KEY
 
-# 添加循环控制变量
-ENABLE_LOOP = True  # 是否启用循环运行
-LOOP_INTERVAL = 300  # 循环间隔时间（秒）
-LOOP_DURATION = 3600  # 循环总时长（秒），设为0表示无限循环
+# 添加lxml可用性检查，当lxml不可用时使用html.parser作为备用方案
+try:
+    from bs4 import BeautifulSoup
+    # 尝试导入lxml解析器
+    import lxml
+    PARSER = 'lxml'
+except ImportError:
+    # 如果lxml不可用，使用默认的html.parser
+    from bs4 import BeautifulSoup
+    PARSER = 'html.parser'
+    logging.warning("lxml解析器不可用，将使用默认的html.parser作为备用方案")
 
 class ColorFormatter(logging.Formatter):
     # ANSI颜色码
@@ -42,16 +48,25 @@ def setup_logger():
 
 async def get_beta_status_text(session, url, sem):
     async with sem:
-        async with session.get(url) as response:
-            text = await response.text()
-            # 只解析 beta-status 部分，减少解析量
-            start = text.find('class="beta-status"')
-            if start != -1:
-                sub_text = text[max(0, start-100):start+500]
-                soup = BeautifulSoup(sub_text, 'lxml')
-                div = soup.find('div', class_='beta-status')
-                if div and div.span:
-                    return div.span.get_text(strip=True)
+        try:
+            async with session.get(url) as response:
+                text = await response.text()
+                # 只解析 beta-status 部分，减少解析量
+                start = text.find('class="beta-status"')
+                if start != -1:
+                    sub_text = text[max(0, start-100):start+500]
+                    try:
+                        # 使用动态选择的解析器
+                        soup = BeautifulSoup(sub_text, PARSER)
+                        div = soup.find('div', class_='beta-status')
+                        if div and div.span:
+                            return div.span.get_text(strip=True)
+                    except Exception as e:
+                        logging.error(f"解析HTML时出错 (URL: {url}): {str(e)}")
+                        return None
+                return None
+        except Exception as e:
+            logging.error(f"获取URL时出错 (URL: {url}): {str(e)}")
             return None
 
 async def check_and_notify():
