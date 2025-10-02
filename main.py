@@ -5,17 +5,9 @@ import time
 from notify import Notifier
 from config import NOFITY_CONFIG, AES_KEY
 
-# 添加lxml可用性检查，当lxml不可用时使用html.parser作为备用方案
-try:
-    from bs4 import BeautifulSoup
-    # 尝试导入lxml解析器
-    import lxml
-    PARSER = 'lxml'
-except ImportError:
-    # 如果lxml不可用，使用默认的html.parser
-    from bs4 import BeautifulSoup
-    PARSER = 'html.parser'
-    logging.warning("lxml解析器不可用，将使用默认的html.parser作为备用方案")
+ENABLE_LOOP = True  # 是否启用循环运行
+LOOP_INTERVAL = 300  # 循环间隔时间（秒）
+LOOP_DURATION = 3600  # 循环总时长（秒），设为0表示无限循环
 
 class ColorFormatter(logging.Formatter):
     # ANSI颜色码
@@ -45,6 +37,18 @@ def setup_logger():
     handler.setFormatter(ColorFormatter())
     logger.handlers = [handler]
     return logger
+
+# 添加lxml可用性检查，当lxml不可用时使用html.parser作为备用方案
+try:
+    from bs4 import BeautifulSoup
+    # 尝试导入lxml解析器
+    import lxml
+    PARSER = 'lxml'
+except ImportError:
+    # 如果lxml不可用，使用默认的html.parser
+    from bs4 import BeautifulSoup
+    PARSER = 'html.parser'
+    logging.warning("lxml解析器不可用，将使用默认的html.parser作为备用方案")
 
 async def get_beta_status_text(session, url, sem):
     async with sem:
