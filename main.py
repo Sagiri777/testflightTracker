@@ -9,46 +9,19 @@ ENABLE_LOOP = True  # 是否启用循环运行
 LOOP_INTERVAL = 300  # 循环间隔时间（秒）
 LOOP_DURATION = 3600  # 循环总时长（秒），设为0表示无限循环
 
-class ColorFormatter(logging.Formatter):
-    # ANSI颜色码
-    GREY = '\033[90m'
-    GREEN = '\033[92m'
-    RESET = '\033[0m'
+from logger import get_service_logger, REQUEST_SERVICE
 
-    def format(self, record):
-        msg = record.getMessage()
-        # 判断result内容
-        if hasattr(record, 'result') and record.result is not None and 'full' in record.result.lower():
-            color = self.GREY
-            group = f"{color}{record.group}{self.RESET}"
-            url = f"{color}{record.url}{self.RESET}"
-            result = f"{color}{record.result}{self.RESET}"
-        else:
-            color = self.GREEN
-            group = f"{color}{record.group}{self.RESET}"
-            url = f"{color}{record.url}{self.RESET}"
-            result = f"{color}{record.result}{self.RESET}"
-        return f"{group} - {url}: {result}"
-
-def setup_logger():
-    logger = logging.getLogger("testflight")
-    logger.setLevel(logging.INFO)
-    handler = logging.StreamHandler()
-    handler.setFormatter(ColorFormatter())
-    logger.handlers = [handler]
-    return logger
+# 主逻辑主要发起请求，使用请求服务名的 logger
+logger = get_service_logger(REQUEST_SERVICE)
 
 # 添加lxml可用性检查，当lxml不可用时使用html.parser作为备用方案
+from bs4 import BeautifulSoup
 try:
-    from bs4 import BeautifulSoup
-    # 尝试导入lxml解析器
-    import lxml
-    PARSER = 'lxml'
-except ImportError:
-    # 如果lxml不可用，使用默认的html.parser
-    from bs4 import BeautifulSoup
-    PARSER = 'html.parser'
-    logging.warning("lxml解析器不可用，将使用默认的html.parser作为备用方案")
+    import lxml  # type: ignore
+    parser: str = 'lxml'
+except Exception:
+    parser = 'html.parser'
+    logger.warning("lxml解析器不可用，将使用默认的html.parser作为备用方案")
 
 async def get_beta_status_text(session, url, sem):
     async with sem:
@@ -61,21 +34,23 @@ async def get_beta_status_text(session, url, sem):
                     sub_text = text[max(0, start-100):start+500]
                     try:
                         # 使用动态选择的解析器
-                        soup = BeautifulSoup(sub_text, PARSER)
+                        soup = BeautifulSoup(sub_text, parser)
                         div = soup.find('div', class_='beta-status')
-                        if div and div.span:
-                            return div.span.get_text(strip=True)
+                        if div:
+                            span = getattr(div, 'span', None)
+                            if span:
+                                return span.get_text(strip=True)
                     except Exception as e:
-                        logging.error(f"解析HTML时出错 (URL: {url}): {str(e)}")
+                        logger.error(f"解析HTML时出错 (URL: {url}): {str(e)}")
                         return None
                 return None
         except Exception as e:
-            logging.error(f"获取URL时出错 (URL: {url}): {str(e)}")
+            logger.error(f"获取URL时出错 (URL: {url}): {str(e)}")
             return None
 
 async def check_and_notify():
     from config import TESTFLIGHT_URLS
-    logger = setup_logger()
+    
     start_time = time.time()
     connector = aiohttp.TCPConnector(ssl=False, enable_cleanup_closed=True)
     sem = asyncio.Semaphore(500)  # 再提升并发数
@@ -97,8 +72,8 @@ async def check_and_notify():
                 continue
             if result:
                 logger.info('', extra={'group': group, 'url': url, 'result': result})
-                # 如果不是"full"状态，则添加到通知列表
-                if 'full' not in result.lower():
+                # 如果不是"full"状态，则添加到通知列表（仅当 result 是字符串时判断）
+                if isinstance(result, str) and 'full' not in result.lower():
                     notify_results.append(f"{group} - {url}: {result}")
         
         # 如果有需要通知的结果，则发送通知
@@ -109,7 +84,7 @@ async def check_and_notify():
             await notifier.notify(title, content, platforms=["bark"])
             
     end_time = time.time()
-    print(f"总耗时: {end_time - start_time:.2f} 秒")
+    logger.info(f"总耗时: {end_time - start_time:.2f} 秒")
 
 async def main():
     if ENABLE_LOOP:
@@ -118,20 +93,23 @@ async def main():
         loop_count = 0
         while True:
             loop_count += 1
-            print(f"\n第 {loop_count} 轮检查开始...")
+            logger.info(f"\\n第 {loop_count} 轮检查开始...")
             await check_and_notify()
             
             # 检查是否达到循环总时长
             if LOOP_DURATION > 0 and (time.time() - start_time) >= LOOP_DURATION:
-                print("达到设定的循环总时长，停止运行")
+                logger.info("达到设定的循环总时长，停止运行")
                 break
                 
-            print(f"等待 {LOOP_INTERVAL} 秒后进行下一轮检查...")
-            # 动态显示剩余等待秒数
+            logger.info(f"等待 {LOOP_INTERVAL} 秒后进行下一轮检查...")
+            # 在终端原地更新剩余等待时间（覆盖同一行）
+            import sys
             for i in range(LOOP_INTERVAL, 0, -1):
-                print(f"\r剩余等待时间: {i} 秒", end="", flush=True)
+                sys.stdout.write("\r剩余等待时间: {} 秒{}".format(i, " " * 10))
+                sys.stdout.flush()
                 await asyncio.sleep(1)
-            print()  # 换行
+            # 恢复换行
+            sys.stdout.write("\n")
     else:
         # 单次运行模式
         await check_and_notify()

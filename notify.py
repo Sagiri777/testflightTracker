@@ -1,15 +1,13 @@
 import asyncio
+import re
 import aiohttp
 import os
-import logging
 from base64 import b64decode
 from Crypto.Cipher import AES
 
-# 日志配置
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
+from logger import get_service_logger, NOTIFY_SERVICE
+# 使用 notify 专属 logger（共享 handler）
+logger = get_service_logger(NOTIFY_SERVICE)
 
 class Notifier:
     def __init__(self, config, aes_key=None):
@@ -26,7 +24,9 @@ class Notifier:
 
     def decrypt_secret(self, secret_enc):
         # AES-ECB解密，secret_enc为base64编码
-        # 检查aes_key是否为bytes类型，如果不是才进行编码
+        # 确保 aes_key 可用
+        if not self.aes_key:
+            raise ValueError("AES key 未提供")
         key = self.aes_key if isinstance(self.aes_key, bytes) else self.aes_key.encode()
         cipher = AES.new(key, AES.MODE_ECB)
         decrypted = cipher.decrypt(b64decode(secret_enc))
@@ -39,15 +39,15 @@ class Notifier:
         try:
             async with session.post(url, json=payload, timeout=5) as resp:
                 result = await resp.text()
-                logging.info(f"Webhook发送成功: {url} 响应: {result}")
+                logger.info(f"Webhook发送成功: {url} 响应: {result}")
                 return result
         except Exception as e:
-            logging.error(f"Webhook发送失败: {url} 错误: {e}")
+            logger.error(f"Webhook发送失败: {url} 错误: {e}")
             return f"Webhook发送失败: {e}"
 
     async def send_wechat(self, session, conf, title, content):
         if "secret_enc" not in conf:
-            logging.error(f"企业微信配置缺少secret_enc: {conf}")
+            logger.error(f"企业微信配置缺少secret_enc: {conf}")
             return "企业微信发送失败: 缺少secret_enc"
         try:
             secret = self.decrypt_secret(conf["secret_enc"])
@@ -64,22 +64,24 @@ class Notifier:
             }
             async with session.post(msg_url, json=payload, timeout=5) as resp:
                 result = await resp.text()
-                logging.info(f"企业微信发送成功: {conf['corp_id']} 响应: {result}")
+                logger.info(f"企业微信发送成功: {conf['corp_id']} 响应: {result}")
                 return result
         except Exception as e:
-            logging.error(f"企业微信发送失败: {conf.get('corp_id', '未知ID')} 错误: {e}")
+            logger.error(f"企业微信发送失败: {conf.get('corp_id', '未知ID')} 错误: {e}")
             return f"企业微信发送失败: {e}"
 
     async def send_bark(self, session, url, title, content):
         url = b64decode(url).decode() if url.startswith("aHR0") else url
-        bark_url = f"{url}/{title}/{content}"
+        url_pattern = r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+'
+        urls = re.findall(url_pattern, content)
+        bark_url = f"{url}/{title}/{content}?level=timeSensitive&group=testflightTracker&url={urls[0] if urls else ''}"
         try:
             async with session.get(bark_url, timeout=5) as resp:
                 result = await resp.text()
-                logging.info(f"Bark发送成功: {url} 响应: {result}")
+                logger.info(f"Bark发送成功 响应: {result}")
                 return result
         except Exception as e:
-            logging.error(f"Bark发送失败: {url} 错误: {e}")
+            logger.error(f"Bark发送失败 错误: {e}")
             return f"Bark发送失败: {e}"
 
     async def notify(self, title, content, platforms=None):
@@ -102,9 +104,9 @@ class Notifier:
             results = await asyncio.gather(*tasks, return_exceptions=True)
         for idx, result in enumerate(results):
             if isinstance(result, Exception):
-                logging.error(f"通知任务{idx}异常: {result}")
+                logger.error(f"通知任务{idx}异常: {result}")
             else:
-                logging.info(f"通知任务{idx}结果: {result}")
+                logger.info(f"通知任务{idx}结果: {result}")
         return results
 
 # 使用示例
