@@ -1,15 +1,13 @@
 import asyncio
 import aiohttp
 import os
-import logging
+from urllib.parse import quote
+from loghelper import info_program,error_program,warning_program
 from base64 import b64decode
 from Crypto.Cipher import AES
+from typing import Optional
 
-# 日志配置
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s [%(levelname)s] %(message)s"
-)
+program_name = "notifyHandler"
 
 class Notifier:
     def __init__(self, config, aes_key=None):
@@ -39,15 +37,15 @@ class Notifier:
         try:
             async with session.post(url, json=payload, timeout=5) as resp:
                 result = await resp.text()
-                logging.info(f"Webhook发送成功: {url} 响应: {result}")
+                info_program(program_name = program_name, message = f"[white]Webhook[/][green]发送成功[/][white,dim]: {url} 响应: {result}[/]")
                 return result
         except Exception as e:
-            logging.error(f"Webhook发送失败: {url} 错误: {e}")
+            error_program(program_name = program_name, message = f"Webhook发送失败: {url} 错误: {e}")
             return f"Webhook发送失败: {e}"
 
     async def send_wechat(self, session, conf, title, content):
         if "secret_enc" not in conf:
-            logging.error(f"企业微信配置缺少secret_enc: {conf}")
+            warning_program(program_name = program_name, message = f"企业微信配置缺少secret_enc: {conf}")
             return "企业微信发送失败: 缺少secret_enc"
         try:
             secret = self.decrypt_secret(conf["secret_enc"])
@@ -64,25 +62,25 @@ class Notifier:
             }
             async with session.post(msg_url, json=payload, timeout=5) as resp:
                 result = await resp.text()
-                logging.info(f"企业微信发送成功: {conf['corp_id']} 响应: {result}")
+                info_program(program_name = program_name, message = f"[white]企业微信[/][green]发送成功[/][white,dim]: {conf['corp_id']} 响应: {result}[/]")
                 return result
         except Exception as e:
-            logging.error(f"企业微信发送失败: {conf.get('corp_id', '未知ID')} 错误: {e}")
+            error_program(program_name = program_name, message = f"企业微信发送失败: {conf.get('corp_id', '未知ID')} 错误: {e}")
             return f"企业微信发送失败: {e}"
 
-    async def send_bark(self, session, url, title, content):
+    async def send_bark(self, session, url, title, content, testflightLink: Optional[str] = ""):
         url = b64decode(url).decode() if url.startswith("aHR0") else url
-        bark_url = f"{url}/{title}/{content}"
+        bark_url = f"{url}/{quote(title)}/{quote(content)}?url={testflightLink}&group=testflightTracker&level=timeSensitive"
         try:
             async with session.get(bark_url, timeout=5) as resp:
                 result = await resp.text()
-                logging.info(f"Bark发送成功: {url} 响应: {result}")
+                info_program(program_name = program_name, message = f"[white]Bark[/][green]发送成功[/][white,dim]: {url} 响应: {result}[/]")
                 return result
         except Exception as e:
-            logging.error(f"Bark发送失败: {url} 错误: {e}")
+            error_program(program_name = program_name, message = f"Bark发送失败: {url} 错误: {e}")
             return f"Bark发送失败: {e}"
 
-    async def notify(self, title, content, platforms=None):
+    async def notify(self, title, content, platforms=None, testflightLink: Optional[str] = ""):
         """
         platforms: ['webhook', 'wechat', 'bark']，为None则全部发送
         """
@@ -98,13 +96,13 @@ class Notifier:
                     tasks.append(self.send_wechat(session, conf, title, content))
             if platforms is None or "bark" in platforms:
                 for url in self.config.get("bark", []):
-                    tasks.append(self.send_bark(session, url, title, content))
+                    tasks.append(self.send_bark(session, url, title, content, testflightLink=testflightLink))
             results = await asyncio.gather(*tasks, return_exceptions=True)
         for idx, result in enumerate(results):
             if isinstance(result, Exception):
-                logging.error(f"通知任务{idx}异常: {result}")
+                error_program(program_name = program_name, message = f"通知任务{idx}异常: {result}")
             else:
-                logging.info(f"通知任务{idx}结果: {result}")
+                info_program(program_name = program_name, message = f"[white]通知[/][green]任务{idx}[/][dim]结果: {result}[/]")
         return results
 
 # 使用示例
