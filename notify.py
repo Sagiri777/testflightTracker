@@ -70,7 +70,7 @@ class Notifier:
 
     async def send_bark(self, session, url, title, content, testflightLink: Optional[str] = ""):
         url = b64decode(url).decode() if url.startswith("aHR0") else url
-        bark_url = f"{url}/{quote(title)}/{quote(content)}?url={testflightLink}"
+        bark_url = f"{url}/{quote(title)}/{quote(content)}?url={testflightLink}&group=testflightTracker&level=timeSensitive"
         try:
             async with session.get(bark_url, timeout=5) as resp:
                 result = await resp.text()
@@ -102,7 +102,7 @@ class Notifier:
             if isinstance(result, Exception):
                 error_program(program_name = program_name, message = f"通知任务{idx}异常: {result}")
             else:
-                info_program(program_name = program_name, message = f"[white]通知[/][green]任务{idx}[/][grey]结果: {result}[/]")
+                info_program(program_name = program_name, message = f"[white]通知[/][green]任务{idx}[/][dim]结果: {result}[/]")
         return results
 
 # 使用示例

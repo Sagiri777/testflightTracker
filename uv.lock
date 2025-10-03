@@ -421,9 +421,15 @@ dependencies = [
     { name = "aiohttp" },
     { name = "beautifulsoup4" },
     { name = "colorama" },
-    { name = "lxml" },
     { name = "pycryptodome" },
+]
+
+[package.optional-dependencies]
+log = [
     { name = "webcolors" },
+]
+parser = [
+    { name = "lxml" },
 ]
 
 [package.metadata]
@@ -431,9 +437,9 @@ requires-dist = [
     { name = "aiohttp", specifier = ">=3.12.15" },
     { name = "beautifulsoup4", specifier = ">=4.14.2" },
     { name = "colorama", specifier = ">=0.4.6" },
-    { name = "lxml", specifier = ">=6.0.2" },
+    { name = "lxml", marker = "extra == 'parser'", specifier = ">=6.0.2" },
     { name = "pycryptodome", specifier = ">=3.23.0" },
-    { name = "webcolors", specifier = ">=24.11.1" },
+    { name = "webcolors", marker = "extra == 'log'", specifier = ">=24.11.1" },
 ]
 
 [[package]]

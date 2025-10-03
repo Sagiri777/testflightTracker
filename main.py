@@ -6,7 +6,7 @@ from loghelper import *
 from config import NOFITY_CONFIG, AES_KEY
 
 ENABLE_LOOP = True  # 是否启用循环运行
-LOOP_INTERVAL = 300  # 循环间隔时间（秒）
+LOOP_INTERVAL = 30  # 循环间隔时间（秒）
 LOOP_DURATION = 3600  # 循环总时长（秒），设为0表示无限循环
 program_name = "testflightTracker"
 
@@ -69,10 +69,10 @@ async def check_and_notify():
             if result:
                 # 如果不是"full"状态，则添加到通知列表
                 if isinstance(result, str) and 'full' not in result.lower() and "满" not in result:
-                    info_program(program_name=f'{program_name}-check',message=f'{group} - {url} - {result}')
+                    info_program(program_name=f'{program_name}-check',message=f'\n{group} - {url} - {result}')
                     notify_results.append(f"{group} - {url}: {result}")
                 else:
-                    info_program(program_name=f'[dim]{program_name}-check[/]',message=f'[dim,grey]{group} - {url} - {result}[/]')
+                    info_program(program_name=f'[dim]{program_name}-check[/]][dim',message=f'[/]]\n[black]{group} - {result} [/][dim]- {url} [/]')
         
         # 如果有需要通知的结果，则发送通知
         if notify_results:
@@ -82,7 +82,7 @@ async def check_and_notify():
             await notifier.notify(title, content, platforms=["bark"],testflightLink=url)
             
     end_time = time.time()
-    info_program(program_name=f'[dim]{program_name}-check[/]',message=f"[dim]总耗时: {end_time - start_time:.2f} 秒[/]")
+    info_program(program_name=f'[dim]{program_name}-check[/]][dim', message=f"[/][dim]总耗时: {end_time - start_time:.2f} 秒[/]")
 
 async def main():
     if ENABLE_LOOP:

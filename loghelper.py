@@ -514,7 +514,7 @@ if __name__ == "__main__":
     
     # 程序名称使用hex颜色
     print("\n--- 程序名称使用hex颜色 ---")
-    info_program("[#FF6B6B]AuthService[/]", "用户认证成功")
+    info_program("[#FF6B6B]AuthService[/]][dim", "[/]用户认证成功")
     warning_program("[#FFA500]Monitor[/]", "系统负载较高")
     error_program("[#DC143C]Database[/]", "连接超时")
     
